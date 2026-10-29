@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學生作業繳交檢查系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'PingFang TC', 'Microsoft JhengHei', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 pb-12">
+
+    <!-- 頂部導覽與標題 -->
+    <header class="bg-indigo-600 text-white shadow-lg mb-8">
+        <div class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold flex items-center gap-3">
+                    <i class="fa-solid me-2 fa-folder-open text-indigo-200"></i>
+                    學生作業繳交檢查系統
+                </h1>
+                <p class="text-indigo-200 text-sm mt-1">快速載入資料夾檔名，自動核對已繳與未繳名單</p>
+            </div>
+            
+            <!-- 上傳資料夾按鈕區 -->
+            <div class="flex items-center gap-3 bg-indigo-700 p-2 rounded-xl border border-indigo-500/50 shadow-inner">
+                <label for="folderInput" class="cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-lg font-medium transition-all shadow hover:shadow-md flex items-center gap-2">
+                    <i class="fa-solid fa-file-import"></i>
+                    <span>選擇/載入作業資料夾</span>
+                </label>
+                <!-- 讀取資料夾的 input 標籤 -->
+                <input type="file" id="folderInput" webkitdirectory directory multiple class="hidden" onchange="handleFolderSelect(event)">
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+
+        <!-- 設定與控制面板 -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div class="flex flex-col lg:flex-row justify-between gap-6">
+                
+                <!-- 班級人數與設定 -->
+                <div class="flex-1 space-y-4">
+                    <h2 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-indigo-500"></i>
+                        基本設定與學號比對規則
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">班級總人數 (預設 40 人)</label>
+                            <div class="flex gap-2">
+                                <input type="number" id="totalStudentsInput" value="40" min="1" max="200" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                <button onclick="updateStudentList()" class="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition">更新</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">搜尋與篩選</label>
+                            <div class="relative">
+                                <input type="text" id="searchInput" placeholder="搜尋座號或姓名..." oninput="filterStudents()" class="w-full border border-slate-300 rounded-lg pl-9 pr-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 批次匯入/修改學生姓名 -->
+                <div class="flex-1 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-sm font-bold text-slate-700">學生名單配置 (每行一人：座號 姓名)</label>
+                        <button onclick="toggleNameEditor()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+                            <i class="fa-solid fa-pen-to-square"></i> 編輯名單
+                        </button>
+                    </div>
+                    <textarea id="customNameList" rows="3" class="w-full text-xs font-mono border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none hidden" placeholder="1 號張三&#10;2 號李四"></textarea>
+                    <div id="nameSummary" class="text-xs text-slate-500 space-y-1">
+                        <p>系統預設學生標示為：「1號同學」、「2號同學」...</p>
+                        <p class="text-indigo-600">提示：只要檔名包含「座號」（如：01、1、1號、01_作業.pdf）皆可自動匹配！</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 統計數據卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- 總人數 -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-slate-500">應繳總人數</p>
+                    <h3 id="statTotal" class="text-3xl font-extrabold text-slate-800 mt-1">40</h3>
+                </div>
+                <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+            </div>
+
+            <!-- 已繳人數 (綠色) -->
+            <div class="bg-white p-6 rounded-2xl border border-emerald-200 bg-emerald-50/30 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-emerald-600">已交人數 (綠色)</p>
+                    <h3 id="statSubmitted" class="text-3xl font-extrabold text-emerald-600 mt-1">0</h3>
+                </div>
+                <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+            </div>
+
+            <!-- 未繳人數 (紅色) -->
+            <div class="bg-white p-6 rounded-2xl border border-rose-200 bg-rose-50/30 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-rose-600">欠交人數 (淺紅色)</p>
+                    <h3 id="statUnsubmitted" class="text-3xl font-extrabold text-rose-600 mt-1">40</h3>
+                </div>
+                <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-circle-xmark"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- 篩選與狀態標籤標題 -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200">
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-slate-700">顯示分類：</span>
+                <button onclick="setFilter('all')" id="btnFilterAll" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white">全部 (40)</button>
+                <button onclick="setFilter('submitted')" id="btnFilterSubmitted" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">已交 (0)</button>
+                <button onclick="setFilter('unsubmitted')" id="btnFilterUnsubmitted" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">欠交 (40)</button>
+            </div>
+            
+            <div class="text-xs text-slate-500 flex items-center gap-4">
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> 已交</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-rose-300 border border-rose-400 inline-block"></span> 欠交</span>
+            </div>
+        </div>
+
+        <!-- 篩選與狀態標籤標題 -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200">
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-slate-700">顯示分類：</span>
+                <button onclick="setFilter('all')" id="btnFilterAll" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white">全部 (40)</button>
+                <button onclick="setFilter('submitted')" id="btnFilterSubmitted" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">已交 (0)</button>
+                <button onclick="setFilter('unsubmitted')" id="btnFilterUnsubmitted" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">欠交 (40)</button>
+            </div>
+            
+            <div class="text-xs text-slate-500 flex items-center gap-4">
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> 已交</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span> 欠交</span>
+            </div>
+        </div>
+
+        <!-- 學生卡片網格清單 -->
+        <div id="studentGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <!-- 動態產生學生卡片 -->
+        </div>
+
+        <!-- 檔案解析紀錄與載入資訊 -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <h2 class="text-md font-bold text-slate-700 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-list-check text-slate-500"></i>
+                已讀取檔案與比對記錄
+            </h2>
+            <div id="fileLog" class="max-h-40 overflow-y-auto bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs font-mono text-slate-600 space-y-1">
+                <p class="text-slate-400 italic">尚未載入任何資料夾檔案。請點擊上方「選擇/載入作業資料夾」按鈕。</p>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // 全局狀態變數
+        let totalStudents = 40;
+        let students = []; // { id: 1, name: "1號同學", submitted: false, fileName: "", matchLog: "" }
+        let currentFilter = 'all';
+
+        // 初始化學生清單
+        function initStudents(count) {
+            totalStudents = parseInt(count) || 40;
+            students = [];
+            for (let i = 1; i <= totalStudents; i++) {
+                students.push({
+                    id: i,
+                    name: `${i}號同學`,
+                    submitted: false,
+                    fileName: "",
+                    matchLog: ""
+                });
+            }
+            updateUI();
+        }
+
+        // 更新人數設定
+        function updateStudentList() {
+            const val = document.getElementById('totalStudentsInput').value;
+            const newCount = parseInt(val);
+            if (newCount > 0) {
+                // 保存已有的提交狀態（如果有的話）
+                const oldStatusMap = new Map();
+                students.forEach(s => oldStatusMap.set(s.id, { submitted: s.submitted, fileName: s.fileName }));
+
+                totalStudents = newCount;
+                students = [];
+                for (let i = 1; i <= totalStudents; i++) {
+                    const prev = oldStatusMap.get(i);
+                    students.push({
+                        id: i,
+                        name: `${i}號同學`,
+                        submitted: prev ? prev.submitted : false,
+                        fileName: prev ? prev.fileName : "",
+                    });
+                }
+                updateUI();
+            }
+        }
+
+        // 處理資料夾選擇
+        function handleFolderSelect(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            // 重置所有學生的繳交狀態
+            students.forEach(s => {
+                s.submitted = false;
+                s.fileName = "";
+            });
+
+            const logContainer = document.getElementById('fileLog');
+            logContainer.innerHTML = ''; // 清空 Log
+
+            let matchedCount = 0;
+            const fileList = Array.from(files);
+
+            // 讀取並匹配檔名
+            fileList.forEach(file => {
+                // 忽略系統隱藏檔案 (如 .DS_Store)
+                if (file.name.startsWith('.')) return;
+
+                const fileName = file.name;
+                let extractedNum = null;
+
+                // 核心邏輯 1：優先比對底線分隔格式 (如 "F5A_01_P1" -> 提取兩個 _ 中間的 01)
+                const underscoreMatch = fileName.match(/_(\d{1,2})_/);
+
+                if (underscoreMatch && underscoreMatch[1]) {
+                    extractedNum = parseInt(underscoreMatch[1], 10);
+                } else {
+                    // 備用邏輯 2：比對「班級/班別後方的數字」(如 3A01, 1B_05, 4B-12, 高一甲03號, Class2A_15)
+                    const classMatch = fileName.match(/(?:[1-6][A-Za-z]|班|甲|乙|丙|丁|戊|己|[A-Z]{1,2})[-_]?(\d{1,2})(?:號)?/i);
+
+                    if (classMatch && classMatch[1]) {
+                        extractedNum = parseInt(classMatch[1], 10);
+                    } else {
+                        // 備用邏輯 3：搜尋檔名中的一般座號格式 (如 "01號"、"座號01" 或獨立數字)
+                        const generalMatch = fileName.match(/(?:號|座號)?(\d{1,2})(?:號)?/);
+                        if (generalMatch && generalMatch[1]) {
+                            extractedNum = parseInt(generalMatch[1], 10);
+                        }
+                    }
+                }
+
+                let matchedStudent = null;
+                if (extractedNum && extractedNum >= 1 && extractedNum <= totalStudents) {
+                    matchedStudent = students.find(s => s.id === extractedNum);
+                }
+
+                if (matchedStudent) {
+                    matchedStudent.submitted = true;
+                    matchedStudent.fileName = fileName;
+                    matchedCount++;
+
+                    // 記錄成功 Log
+                    const logItem = document.createElement('div');
+                    logItem.className = 'text-emerald-600 font-semibold';
+                    logItem.innerHTML = `<i class="fa-solid fa-check me-1"></i> [匹配成功] 檔案: "${fileName}" ➔ 歸屬: ${matchedStudent.id}號 (${matchedStudent.name})`;
+                    logContainer.appendChild(logItem);
+                } else {
+                    // 未成功歸類 Log
+                    const logItem = document.createElement('div');
+                    logItem.className = 'text-slate-400';
+                    logItem.innerHTML = `<i class="fa-solid fa-circle-question me-1"></i> [無法歸類] 檔案: "${fileName}" (請確認檔名是否包含座號或班級後數字)`;
+                    logContainer.appendChild(logItem);
+                }
+            });
+
+            if (matchedCount === 0) {
+                const logItem = document.createElement('div');
+                logItem.className = 'text-rose-500 font-bold mt-1';
+                logItem.innerText = '⚠️ 提示：資料夾內未發現符合座號格式的檔案，請檢查檔案名稱。';
+                logContainer.prepend(logItem);
+            }
+
+            updateUI();
+        }
+
+        // 手動切換學生繳交狀態
+        function toggleStatus(studentId) {
+            const student = students.find(s => s.id === studentId);
+            if (student) {
+                student.submitted = !student.submitted;
+                if (!student.submitted) student.fileName = "";
+                updateUI();
+            }
+        }
+
+        // 切換篩選器
+        function setFilter(filter) {
+            currentFilter = filter;
+            
+            // 更新按鈕樣式
+            document.getElementById('btnFilterAll').className = filter === 'all' ? 'px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white' : 'px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200';
+            document.getElementById('btnFilterSubmitted').className = filter === 'submitted' ? 'px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white' : 'px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200';
+            document.getElementById('btnFilterUnsubmitted').className = filter === 'unsubmitted' ? 'px-3 py-1.5 text-xs font-medium rounded-lg bg-rose-600 text-white' : 'px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200';
+
+            renderGrid();
+        }
+
+        // 搜尋過濾
+        function filterStudents() {
+            renderGrid();
+        }
+
+        // 編輯學生姓名 Toggle
+        function toggleNameEditor() {
+            const textarea = document.getElementById('customNameList');
+            if (textarea.classList.contains('hidden')) {
+                // 顯示並載入目前姓名
+                textarea.value = students.map(s => `${s.id} ${s.name}`).join('\n');
+                textarea.classList.remove('hidden');
+            } else {
+                // 隱藏並儲存變更
+                const lines = textarea.value.split('\n');
+                lines.forEach(line => {
+                    const parts = line.trim().split(/\s+/);
+                    if (parts.length >= 2) {
+                        const id = parseInt(parts[0]);
+                        const name = parts.slice(1).join(' ');
+                        const student = students.find(s => s.id === id);
+                        if (student) student.name = name;
+                    }
+                });
+                textarea.classList.add('hidden');
+                updateUI();
+            }
+        }
+
+        // 更新介面與數據顯示
+        function updateUI() {
+            // 計算統計
+            const submittedCount = students.filter(s => s.submitted).length;
+            const unsubmittedCount = totalStudents - submittedCount;
+
+            // 更新數據面板
+            document.getElementById('statTotal').innerText = totalStudents;
+            document.getElementById('statSubmitted').innerText = submittedCount;
+            document.getElementById('statUnsubmitted').innerText = unsubmittedCount;
+
+            // 更新篩選標籤數字
+            document.getElementById('btnFilterAll').innerText = `全部 (${totalStudents})`;
+            document.getElementById('btnFilterSubmitted').innerText = `已交 (${submittedCount})`;
+            document.getElementById('btnFilterUnsubmitted').innerText = `欠交 (${unsubmittedCount})`;
+
+            renderGrid();
+        }
+
+        // 渲染學生卡片 Grid
+        function renderGrid() {
+            const grid = document.getElementById('studentGrid');
+            const searchKeyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            grid.innerHTML = '';
+
+            const filteredStudents = students.filter(student => {
+                // 狀態篩選
+                if (currentFilter === 'submitted' && !student.submitted) return false;
+                if (currentFilter === 'unsubmitted' && student.submitted) return false;
+
+                // 關鍵字搜尋
+                if (searchKeyword) {
+                    const matchesId = student.id.toString().includes(searchKeyword);
+                    const matchesName = student.name.toLowerCase().includes(searchKeyword);
+                    return matchesId || matchesName;
+                }
+                return true;
+            });
+
+            if (filteredStudents.length === 0) {
+                grid.innerHTML = `
+                    <div id="nameSummary" class="text-xs text-slate-500 space-y-1">
+                        <p>系統預設學生標示為：「1號同學」、「2號同學」...</p>
+                        <p class="text-indigo-600">提示：支援「F5A_01_P1」格式（自動讀取兩個底線中間的座號）或包含座號之檔名！</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filteredStudents.forEach(student => {
+                const card = document.createElement('div');
+                card.onclick = () => toggleStatus(student.id);
+
+                if (student.submitted) {
+                    // 已交卡片 (綠色)
+                    card.className = `
+                        cursor-pointer transition-all duration-200 transform hover:-translate-y-1
+                        bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl p-4 shadow-md hover:shadow-lg
+                        border-2 border-emerald-400 flex flex-col justify-between relative overflow-hidden group
+                    `;
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                                座號 ${student.id < 10 ? '0' + student.id : student.id}
+                            </span>
+                            <span class="text-lg">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </span>
+                        </div>
+                        <div class="my-1">
+                            <h4 class="font-bold text-lg truncate">${student.name}</h4>
+                            <p class="text-emerald-100 text-xs font-medium">已繳交</p>
+                        </div>
+                        ${student.fileName ? `
+                            <div class="mt-2 pt-2 border-t border-emerald-400/40 text-[10px] text-emerald-100 truncate font-mono" title="${student.fileName}">
+                                <i class="fa-solid fa-file text-[9px] me-1"></i>${student.fileName}
+                            </div>
+                        ` : ''}
+                        <div class="absolute -bottom-6 -right-6 text-emerald-400/20 text-6xl group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-check text-white/10"></i>
+                        </div>
+                    `;
+                } else {
+                    // 欠交卡片 (淺紅色)
+                    card.className = `
+                        cursor-pointer transition-all duration-200 transform hover:-translate-y-1
+                        bg-rose-100 hover:bg-rose-200 text-rose-900 rounded-xl p-4 shadow-sm hover:shadow-md
+                        border-2 border-rose-300 flex flex-col justify-between relative overflow-hidden group
+                    `;
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-bold bg-rose-200/80 text-rose-800 px-2 py-0.5 rounded-full">
+                                座號 ${student.id < 10 ? '0' + student.id : student.id}
+                            </span>
+                            <span class="text-lg text-rose-600">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                            </span>
+                        </div>
+                        <div class="my-1">
+                            <h4 class="font-bold text-lg text-rose-900 truncate">${student.name}</h4>
+                            <p class="text-rose-600 text-xs font-semibold">未繳交 / 欠交</p>
+                        </div>
+                        <div class="mt-2 pt-2 border-t border-rose-200 text-[10px] text-rose-500 italic">
+                            點擊手動設為已交
+                        </div>
+                        <div class="absolute -bottom-6 -right-6 text-rose-300/30 text-6xl group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-xmark"></i>
+                        </div>
+                    `;
+                }
+
+                grid.appendChild(card);
+            });
+        }
+
+        // 初始化執行
+        window.onload = function() {
+            initStudents(40);
+        };
+    </script>
+</body>
+</html>
