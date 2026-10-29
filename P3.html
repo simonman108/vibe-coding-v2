@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>手機電量提醒 - Python 程式邏輯挑戰</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- html2canvas for Exporting Card as Image -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- Pyodide Python Runner -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <!-- Prism.js for OnlineGDB Syntax Highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Fira+Code:wght@400;500;600&display=swap');
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+    }
+    .font-mono-code {
+      font-family: 'Fira Code', Consolas, Monaco, monospace;
+    }
+
+    /* OnlineGDB Editor Overlay Styling */
+    .gdb-editor-wrapper {
+      position: relative;
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'Fira Code', Consolas, Monaco, monospace;
+    }
+
+    /* Standardized typography for text area and highlight code layer */
+    .gdb-code-target {
+      font-family: 'Fira Code', Consolas, Monaco, monospace !important;
+      line-height: 1.6 !important;
+      tab-size: 4 !important;
+      -moz-tab-size: 4 !important;
+      white-space: pre !important;
+      word-wrap: normal !important;
+      word-break: normal !important;
+      margin: 0 !important;
+      padding: 16px !important;
+      border: 0 !important;
+      box-sizing: border-box !important;
+    }
+
+    /* Prism Highlighting Layer */
+    #highlightLayer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      background: transparent !important;
+    }
+
+    #highlightCode {
+      background: transparent !important;
+      color: #d4d4d4;
+    }
+
+    /* Textarea Input Layer */
+    #pythonCode {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 580px;
+      background: transparent;
+      color: transparent;
+      caret-color: #ffffff;
+      resize: vertical;
+      outline: none;
+      z-index: 10;
+    }
+
+    /* OnlineGDB Specific Prism Colors Override */
+    .token.keyword { color: #569cd6 !important; font-weight: bold; }
+    .token.builtin { color: #4ec9b0 !important; }
+    .token.function { color: #dcdcaa !important; }
+    .token.number { color: #b5cea8 !important; }
+    .token.string { color: #ce9178 !important; }
+    .token.comment { color: #6a9955 !important; font-style: italic; }
+    .token.operator { color: #d4d4d4 !important; }
+    .token.punctuation { color: #d4d4d4 !important; }
+
+    /* Custom Scrollbar for Code Editor */
+    textarea::-webkit-scrollbar, #highlightLayer::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    textarea::-webkit-scrollbar-thumb {
+      background: #3e3e42;
+      border-radius: 5px;
+    }
+    textarea::-webkit-scrollbar-track {
+      background: #1e1e1e;
+    }
+
+    /* Dynamic Battery Visual Animation */
+    @keyframes batteryPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.98); }
+    }
+    .low-battery-pulse {
+      animation: batteryPulse 1.2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen pb-12">
+
+  <!-- Header -->
+  <header class="bg-slate-900 text-white shadow-lg border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <i class="fa-solid fa-battery-three-quarters text-emerald-400 text-2xl"></i>
+        <h1 class="text-xl md:text-2xl font-bold tracking-wide">堂課3：手機電量提醒 - Online Python 挑戰賽</h1>
+      </div>
+      <span class="text-xs bg-slate-800 text-emerald-400 border border-emerald-400/30 font-mono px-3 py-1 rounded-full">OnlineGDB Style IDE</span>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 mt-6 space-y-6">
+
+    <!-- Step 0: Student Info Selection -->
+    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+      <h2 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+        <span class="bg-emerald-600 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">0</span>
+        學生身份與作業選擇
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">選擇班級</label>
+          <select id="classSelect" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <option value="F5A">F5A</option>
+            <option value="F5B">F5B</option>
+            <option value="F5C">F5C</option>
+            <option value="F5D">F5D</option>
+            <option value="F5E">F5E</option>
+            <option value="F5F">F5F</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">選擇學號 (1 ~ 38)</label>
+          <select id="seatSelect" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <!-- Populated via JS -->
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">選擇作業編號 (已鎖定)</label>
+          <select id="assignmentSelect" disabled class="w-full p-2.5 bg-slate-200 border border-slate-300 rounded-lg text-sm font-bold text-slate-700 cursor-not-allowed focus:outline-none">
+            <!-- Populated via JS (P3) -->
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 1: Real Situation Experience -->
+    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+          <span class="bg-emerald-600 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">1</span>
+          情境體驗：手機電量提醒測試
+        </h2>
+        <span class="text-xs bg-emerald-100 text-emerald-800 font-semibold px-2.5 py-1 rounded-full">條件判斷邏輯</span>
+      </div>
+
+      <p class="text-slate-600 text-xs md:text-sm mb-4">
+        請輸入或調整手機電量（0~100%），測試系統出現的提醒文字與動態電池視覺效果。
+      </p>
+
+      <div class="flex flex-col sm:flex-row gap-3 mb-4">
+        <div class="relative flex-1">
+          <input type="number" id="batteryInput" min="0" max="100" placeholder="請輸入電量（0 ~ 100）" class="w-full p-2.5 pl-9 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <i class="fa-solid fa-battery-half text-slate-400 absolute left-3 top-3 text-sm"></i>
+        </div>
+        <button onclick="checkBatteryStatus()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-semibold px-5 py-2.5 rounded-lg transition text-sm flex items-center justify-center gap-2 shadow-sm">
+          <i class="fa-solid fa-play"></i>
+          測試 1：檢測電量狀態
+        </button>
+      </div>
+
+      <!-- Result 1 Area with Dynamic Battery Graphic -->
+      <div id="resultBox1" class="hidden p-5 rounded-2xl bg-slate-900 text-white shadow-inner">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+          
+          <!-- Dynamic Battery Display Graphic -->
+          <div class="flex flex-col items-center justify-center space-y-2 w-full md:w-auto">
+            <div class="text-xs text-slate-400 font-medium tracking-wide">動態手機電池狀態</div>
+            <div class="flex items-center gap-1.5">
+              <!-- Outer Battery Shell -->
+              <div class="relative w-48 h-20 border-4 border-slate-300 rounded-2xl p-1.5 bg-slate-950/80 shadow-2xl flex items-center overflow-hidden">
+                <!-- Inner Battery Level Fill -->
+                <div id="batteryFill" class="h-full rounded-lg transition-all duration-700 ease-out flex items-center justify-end pr-2 font-mono font-bold text-xs shadow-lg" style="width: 0%;">
+                  <!-- Charging/Alert Icon inside Battery Fill -->
+                  <span id="batteryIcon" class="text-white drop-shadow"></span>
+                </div>
+              </div>
+              <!-- Battery Nipple / Terminal -->
+              <div class="w-3 h-8 bg-slate-300 rounded-r-md"></div>
+            </div>
+            <!-- Battery Percentage Text -->
+            <span id="batteryPercentText" class="text-sm font-bold font-mono text-emerald-400">0%</span>
+          </div>
+
+          <!-- Alert Message Display -->
+          <div class="flex-1 border-t md:border-t-0 md:border-l border-slate-800 pt-4 md:pt-0 md:pl-6 text-center md:text-left space-y-2">
+            <div class="text-xs text-slate-400 font-medium">系統提示訊息 Output</div>
+            <div id="displayBatteryMsg" class="text-xl md:text-2xl font-extrabold text-emerald-400 transition-all duration-300">
+              --
+            </div>
+            <p class="text-xs text-slate-500">
+              當前輸入數值：<span id="displayBatteryVal" class="font-bold text-slate-300">0</span>%
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 2: OnlineGDB Style Python Editor -->
+    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+          <span class="bg-emerald-600 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">2</span>
+          自主挑戰：撰寫 Python 程式碼
+        </h2>
+        <span id="pyodideStatus" class="text-xs bg-slate-100 text-slate-600 font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5">
+          <i class="fa-solid fa-spinner animate-spin"></i> Python 載入中...
+        </span>
+      </div>
+
+      <!-- 常駐顯示在輸入框上方的編程提示卡片 -->
+      <div class="bg-slate-100 border-l-4 border-emerald-500 p-3.5 rounded-r-lg mb-4 text-xs md:text-sm text-slate-700 space-y-1.5">
+        <p class="font-bold text-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-lightbulb text-emerald-500"></i> 編程提示與題目要求：
+        </p>
+        <ul class="list-disc list-inside space-y-1 text-slate-600 font-mono text-xs pl-1">
+          <li>電量 &lt; 20% → 印出「電量過低，快充電！ 🔋」</li>
+          <li>20% ~ 80% → 印出「電量正常 👍」</li>
+          <li>&gt; 80% → 印出「電量充足 😎」</li>
+        </ul>
+      </div>
+
+      <!-- OnlineGDB Style IDE Window -->
+      <div class="rounded-xl overflow-hidden border border-slate-700 shadow-xl bg-[#1e1e1e]">
+        
+        <!-- OnlineGDB Header Toolbar -->
+        <div class="bg-[#2d2d2d] px-4 py-2.5 border-b border-slate-700 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <!-- OnlineGDB Green Run Button -->
+            <button id="test2Btn" onclick="testPythonCode()" disabled class="bg-[#28a745] hover:bg-[#218838] active:scale-95 disabled:opacity-40 text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-2 transition cursor-pointer shadow">
+              <i class="fa-solid fa-play text-xs"></i> Run (測試 2)
+            </button>
+            <!-- Clear Button -->
+            <button onclick="clearEditor()" class="bg-[#3e3e42] hover:bg-[#4e4e52] text-slate-200 text-xs font-semibold px-3 py-2 rounded flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-rotate-left"></i> 清除
+            </button>
+            <span class="text-xs text-slate-400 font-mono hidden sm:inline ml-2">OnlineGDB Python Debugger</span>
+          </div>
+
+          <!-- Font Size Controls -->
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400 font-medium">字體:</span>
+            <button onclick="changeFontSize(-2)" class="bg-[#3e3e42] hover:bg-[#4e4e52] text-slate-200 w-7 h-7 rounded flex items-center justify-center font-bold text-xs transition" title="縮小字體">
+              <i class="fa-solid fa-minus"></i>
+            </button>
+            <span id="fontSizeDisplay" class="text-xs font-mono text-emerald-400 min-w-[36px] text-center font-bold">22px</span>
+            <button onclick="changeFontSize(2)" class="bg-[#3e3e42] hover:bg-[#4e4e52] text-slate-200 w-7 h-7 rounded flex items-center justify-center font-bold text-xs transition" title="放大字體">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- OnlineGDB Editor Workspace -->
+        <div class="relative flex min-h-[580px] bg-[#1e1e1e]">
+          <!-- Line Numbers Column -->
+          <div id="lineNumbers" class="w-12 bg-[#252526] text-[#858585] font-mono text-right pr-3 pt-4 select-none border-r border-[#333333] flex-shrink-0" style="font-size: 22px; line-height: 1.6;">
+            1
+          </div>
+
+          <!-- Code Overlay Container -->
+          <div class="relative flex-1 overflow-hidden gdb-editor-wrapper">
+            <!-- Syntax Highlighting Layer -->
+            <pre id="highlightLayer" aria-hidden="true" class="gdb-code-target"><code id="highlightCode" class="language-python gdb-code-target"></code></pre>
+
+            <!-- Textarea Input Layer -->
+            <textarea id="pythonCode" onfocus="autoSetFontSize(24)" oninput="handleEditorInput()" onkeydown="handleKeyDown(event)" onscroll="syncScroll()" class="gdb-code-target" style="font-size: 22px; line-height: 1.6;" spellcheck="false"># 題目：手機電量提醒
+</textarea>
+          </div>
+        </div>
+
+        <!-- OnlineGDB Console / Terminal Panel -->
+        <div id="consoleContainer" class="border-t border-[#333333] bg-[#1e1e1e] p-4 font-mono">
+          <div class="flex items-center justify-between pb-2 mb-2 border-b border-[#333333]">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <i class="fa-solid fa-terminal text-emerald-400"></i> Console Output (測試結果)
+            </span>
+            <span id="test2StatusText" class="text-xs font-medium text-slate-400">
+              尚未進行測試 2
+            </span>
+          </div>
+          <!-- Test Output Log -->
+          <div id="testOutputArea" class="text-sm text-slate-200 min-h-[70px] max-h-60 overflow-y-auto font-mono whitespace-pre-wrap leading-relaxed">
+            <span class="text-slate-500 text-xs">點擊上方綠色「Run (測試 2)」按鈕，系統將進行多組資料自動驗證...</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Step 3: Export Result as Image -->
+    <section id="exportSection" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+          <span class="bg-emerald-600 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">3</span>
+          匯出學習成果卡片
+        </h2>
+      </div>
+
+      <p class="text-slate-600 text-xs md:text-sm mb-4">
+        完成「測試 2」驗證成功後，點擊下方「輸出圖檔」按鈕，即可將你的作品儲存為圖片檔。
+      </p>
+
+      <!-- Printable Certificate/Card Container -->
+      <div class="overflow-x-auto pb-2">
+        <div id="captureCard" class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-emerald-500/50 p-6 rounded-2xl min-w-[500px] max-w-2xl mx-auto shadow-xl relative text-white">
+          <!-- Card Header -->
+          <div class="flex justify-between items-start border-b border-slate-700 pb-4 mb-4">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-400">Python 程式邏輯挑戰報告</span>
+              <h3 class="text-xl font-extrabold text-white mt-1">題目：手機電量提醒</h3>
+            </div>
+            <div class="text-right">
+              <div class="text-xs font-bold bg-emerald-500 text-slate-900 px-3 py-1 rounded-md inline-block shadow-sm">
+                學生：<span id="cardStudentId">F5A_01</span>
+              </div>
+              <div class="text-xs text-slate-400 mt-1" id="cardDate">2026-10-28</div>
+            </div>
+          </div>
+
+          <!-- Card Body -->
+          <div class="space-y-4 text-sm">
+            <div class="grid grid-cols-2 gap-3 bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+              <div>
+                <span class="text-slate-400 text-xs">測試 1 輸入電量：</span>
+                <p class="font-bold text-slate-100"><span id="cardBatteryInput">--</span> %</p>
+              </div>
+              <div>
+                <span class="text-slate-400 text-xs">提示訊息：</span>
+                <p class="font-bold text-emerald-400"><span id="cardBatteryOutput">--</span></p>
+              </div>
+            </div>
+
+            <div>
+              <span class="text-xs font-semibold text-slate-400 block mb-1">自訂 Python 程式碼 (OnlineGDB)：</span>
+              <pre id="cardCodeDisplay" class="bg-[#1e1e1e] text-emerald-400 p-3 rounded-xl text-xs font-mono-code overflow-x-auto min-h-[80px] border border-slate-700"># 尚未測試完成</pre>
+            </div>
+
+            <div class="flex justify-between items-center bg-emerald-950/60 border border-emerald-500/40 p-2.5 rounded-xl">
+              <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                程式測試狀態：<span id="cardStatus">等待測試 2</span>
+              </span>
+              <span class="text-[10px] text-emerald-400/80 font-mono">Verified by Pyodide Engine</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export Action Button -->
+      <div class="mt-6 text-center">
+        <button id="exportBtn" onclick="exportCardImage()" disabled class="bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 text-white font-bold px-8 py-3 rounded-xl transition inline-flex items-center gap-2 shadow-md">
+          <i class="fa-solid fa-file-image"></i>
+          輸出圖檔 (<span id="exportFileName">F5A_01.png</span>)
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Message Box Modal -->
+  <div id="msgModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl border border-slate-100 text-center space-y-4">
+      <div id="modalIcon" class="w-12 h-12 rounded-full mx-auto flex items-center justify-center text-xl"></div>
+      <h3 id="modalTitle" class="text-lg font-bold text-slate-800"></h3>
+      <p id="modalMessage" class="text-sm text-slate-600"></p>
+      <button onclick="closeModal()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-xl text-sm transition">
+        確定
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let pyodide = null;
+    let isTest2Passed = false;
+    let currentFontSize = 22;
+
+    // Initialize Page
+    window.onload = async function() {
+      populateSeatNumbers();
+      populateAssignmentNumbers();
+      updateCardInfo();
+      handleEditorInput(); // Trigger initial highlight & line numbers
+      
+      const now = new Date();
+      document.getElementById('cardDate').innerText = now.toISOString().split('T')[0];
+
+      document.getElementById('classSelect').addEventListener('change', updateCardInfo);
+      document.getElementById('seatSelect').addEventListener('change', updateCardInfo);
+      document.getElementById('assignmentSelect').addEventListener('change', updateCardInfo);
+
+      // Load Pyodide Engine
+      try {
+        pyodide = await loadPyodide();
+        const pyStatus = document.getElementById('pyodideStatus');
+        pyStatus.className = "text-xs bg-emerald-100 text-emerald-800 font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5";
+        pyStatus.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i> Python 引擎已就緒';
+        document.getElementById('test2Btn').disabled = false;
+      } catch (err) {
+        console.error("Pyodide Fail:", err);
+        const pyStatus = document.getElementById('pyodideStatus');
+        pyStatus.className = "text-xs bg-rose-100 text-rose-800 font-semibold px-2.5 py-1 rounded-full";
+        pyStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Python 載入失敗，請重新整理';
+      }
+    };
+
+    // Font Size Controls
+    function changeFontSize(delta) {
+      currentFontSize = Math.max(14, Math.min(32, currentFontSize + delta));
+      applyFontSize(currentFontSize);
+    }
+
+    // Automatically set font size to specific target (e.g. 24px on focus)
+    function autoSetFontSize(targetSize) {
+      if (currentFontSize !== targetSize) {
+        currentFontSize = targetSize;
+        applyFontSize(currentFontSize);
+      }
+    }
+
+    function applyFontSize(size) {
+      document.getElementById('fontSizeDisplay').innerText = `${size}px`;
+      
+      const textarea = document.getElementById('pythonCode');
+      const highlightLayer = document.getElementById('highlightLayer');
+      const lineNumbers = document.getElementById('lineNumbers');
+      
+      textarea.style.fontSize = `${size}px`;
+      highlightLayer.style.fontSize = `${size}px`;
+      lineNumbers.style.fontSize = `${size}px`;
+
+      handleEditorInput();
+    }
+
+    // Handle Input & Live Highlighting
+    function handleEditorInput() {
+      const textarea = document.getElementById('pythonCode');
+      const highlightCode = document.getElementById('highlightCode');
+      
+      let text = textarea.value;
+      if (text.endsWith('\n')) {
+        text += ' ';
+      }
+
+      // Syntax Highlight via Prism
+      highlightCode.innerHTML = Prism.highlight(text, Prism.languages.python, 'python');
+      
+      updateLineNumbers();
+      syncScroll();
+    }
+
+    function updateLineNumbers() {
+      const textarea = document.getElementById('pythonCode');
+      const lineNumbers = document.getElementById('lineNumbers');
+      const lines = textarea.value.split('\n').length;
+      
+      const totalDisplayLines = Math.max(lines, 20);
+      let lineNumHTML = '';
+      for (let i = 1; i <= totalDisplayLines; i++) {
+        lineNumHTML += `${i}<br>`;
+      }
+      lineNumbers.innerHTML = lineNumHTML;
+    }
+
+    function syncScroll() {
+      const textarea = document.getElementById('pythonCode');
+      const highlightLayer = document.getElementById('highlightLayer');
+      const lineNumbers = document.getElementById('lineNumbers');
+      
+      highlightLayer.scrollTop = textarea.scrollTop;
+      highlightLayer.scrollLeft = textarea.scrollLeft;
+      lineNumbers.scrollTop = textarea.scrollTop;
+    }
+
+    // Allow Tab key inside textarea
+    function handleKeyDown(e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const textarea = e.target;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+
+        textarea.value = textarea.value.substring(0, start) + "    " + textarea.value.substring(end);
+        textarea.selectionStart = textarea.selectionEnd = start + 4;
+
+        handleEditorInput();
+      }
+    }
+
+    function clearEditor() {
+      const textarea = document.getElementById('pythonCode');
+      textarea.value = '# 題目：手機電量提醒\n';
+      handleEditorInput();
+    }
+
+    function populateSeatNumbers() {
+      const select = document.getElementById('seatSelect');
+      select.innerHTML = '';
+      for (let i = 1; i <= 38; i++) {
+        const val = i < 10 ? `0${i}` : `${i}`;
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = `${i} 號 (${val})`;
+        select.appendChild(opt);
+      }
+    }
+
+    function populateAssignmentNumbers() {
+      const select = document.getElementById('assignmentSelect');
+      select.innerHTML = '';
+      const opt = document.createElement('option');
+      opt.value = 'P3';
+      opt.textContent = '作業 P3';
+      opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    function getStudentId() {
+      const className = document.getElementById('classSelect').value;
+      const seatNo = document.getElementById('seatSelect').value;
+      const assignment = document.getElementById('assignmentSelect').value;
+      return `${className}_${seatNo}_${assignment}`;
+    }
+
+    function updateCardInfo() {
+      const studentId = getStudentId();
+      document.getElementById('cardStudentId').innerText = studentId;
+      document.getElementById('exportFileName').innerText = `${studentId}.png`;
+    }
+
+    function showModal(title, msg, type = 'info') {
+      const modal = document.getElementById('msgModal');
+      const icon = document.getElementById('modalIcon');
+      document.getElementById('modalTitle').innerText = title;
+      document.getElementById('modalMessage').innerText = msg;
+
+      if (type === 'success') {
+        icon.className = 'w-12 h-12 rounded-full mx-auto flex items-center justify-center text-xl bg-emerald-100 text-emerald-600';
+        icon.innerHTML = '<i class="fa-solid fa-check"></i>';
+      } else if (type === 'error') {
+        icon.className = 'w-12 h-12 rounded-full mx-auto flex items-center justify-center text-xl bg-rose-100 text-rose-600';
+        icon.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+      } else {
+        icon.className = 'w-12 h-12 rounded-full mx-auto flex items-center justify-center text-xl bg-emerald-100 text-emerald-600';
+        icon.innerHTML = '<i class="fa-solid fa-info"></i>';
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('msgModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    // Step 1 Calculation
+    function checkBatteryStatus() {
+      const inputVal = document.getElementById('batteryInput').value;
+      if (inputVal === '' || inputVal < 0 || inputVal > 100) {
+        showModal('輸入錯誤', '請輸入 0 到 100 之間的電量百分比！', 'error');
+        return;
+      }
+
+      const battery = parseInt(inputVal, 10);
+      let msg = "";
+      
+      const batteryFill = document.getElementById('batteryFill');
+      const batteryIcon = document.getElementById('batteryIcon');
+      const batteryPercentText = document.getElementById('batteryPercentText');
+      const msgDisplay = document.getElementById('displayBatteryMsg');
+
+      // Update Fill width
+      batteryFill.style.width = `${Math.max(5, battery)}%`;
+      batteryPercentText.innerText = `${battery}%`;
+
+      // Color and Condition Rules
+      if (battery < 20) {
+        msg = "電量過低，快充電！ 🔋";
+        batteryFill.className = "h-full rounded-lg transition-all duration-700 ease-out flex items-center justify-end pr-2 font-mono font-bold text-xs bg-gradient-to-r from-rose-600 to-red-500 text-white low-battery-pulse shadow-rose-500/50";
+        batteryIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-white"></i>';
+        msgDisplay.className = "text-xl md:text-2xl font-extrabold text-rose-400 animate-bounce";
+      } else if (battery <= 80) {
+        msg = "電量正常 👍";
+        batteryFill.className = "h-full rounded-lg transition-all duration-700 ease-out flex items-center justify-end pr-2 font-mono font-bold text-xs bg-gradient-to-r from-emerald-600 to-emerald-400 text-white shadow-emerald-500/50";
+        batteryIcon.innerHTML = '<i class="fa-solid fa-check text-white"></i>';
+        msgDisplay.className = "text-xl md:text-2xl font-extrabold text-emerald-400";
+      } else {
+        msg = "電量充足 😎";
+        batteryFill.className = "h-full rounded-lg transition-all duration-700 ease-out flex items-center justify-end pr-2 font-mono font-bold text-xs bg-gradient-to-r from-teal-500 to-cyan-400 text-white shadow-cyan-500/50";
+        batteryIcon.innerHTML = '<i class="fa-solid fa-bolt text-amber-300"></i>';
+        msgDisplay.className = "text-xl md:text-2xl font-extrabold text-cyan-300";
+      }
+
+      document.getElementById('displayBatteryVal').innerText = battery;
+      document.getElementById('displayBatteryMsg').innerText = msg;
+      
+      document.getElementById('cardBatteryInput').innerText = battery;
+      document.getElementById('cardBatteryOutput').innerText = msg;
+
+      document.getElementById('resultBox1').classList.remove('hidden');
+    }
+
+    // Step 2: Test Student Python Code
+    async function testPythonCode() {
+      if (!pyodide) {
+        showModal('系統提示', 'Python 引擎尚未載入完成，請稍候...', 'info');
+        return;
+      }
+
+      const code = document.getElementById('pythonCode').value.trim();
+      if (!code) {
+        showModal('提示', '請先輸入你的 Python 程式碼！', 'error');
+        return;
+      }
+
+      const outputArea = document.getElementById('testOutputArea');
+      outputArea.innerHTML = '<span class="text-emerald-400 font-bold"><i class="fa-solid fa-spinner animate-spin"></i> 測試執行中，正在輸入多組測試資料驗證...</span>';
+
+      const testCases = [
+        { battery: 15, expectedKeyword: "電量過低" },
+        { battery: 50, expectedKeyword: "電量正常" },
+        { battery: 90, expectedKeyword: "電量充足" }
+      ];
+
+      let allPassed = true;
+      let logs = [];
+
+      for (let i = 0; i < testCases.length; i++) {
+        const testCase = testCases[i];
+        
+        try {
+          pyodide.runPython(`
+import sys
+import io
+
+sys.stdin = io.StringIO("${testCase.battery}\\n")
+sys.stdout = io.StringIO()
+          `);
+
+          await pyodide.runPythonAsync(code);
+
+          const pyStdout = pyodide.runPython("sys.stdout.getvalue()").trim();
+
+          if (pyStdout.includes(testCase.expectedKeyword)) {
+            logs.push(`<div class="text-emerald-400 font-mono">✓ 測試項 ${i+1} [電量:${testCase.battery}%] -> 輸出符合包含: "${testCase.expectedKeyword}" (正確)</div>`);
+          } else {
+            allPassed = false;
+            logs.push(`<div class="text-rose-400 font-mono">✗ 測試項 ${i+1} [電量:${testCase.battery}%] -> 期望包含: "${testCase.expectedKeyword}", 但你的程式輸出: "${pyStdout || '無輸出'}"</div>`);
+          }
+
+        } catch (err) {
+          allPassed = false;
+          logs.push(`<div class="text-rose-400 font-mono">✗ 測試項 ${i+1} [電量:${testCase.battery}%] -> 語法/執行錯誤: ${err.message.split('\n').pop()}</div>`);
+        }
+      }
+
+      outputArea.innerHTML = logs.join('');
+
+      const statusText = document.getElementById('test2StatusText');
+      const cardStatus = document.getElementById('cardStatus');
+      const cardCodeDisplay = document.getElementById('cardCodeDisplay');
+      const exportBtn = document.getElementById('exportBtn');
+
+      cardCodeDisplay.innerText = code;
+
+      if (allPassed) {
+        isTest2Passed = true;
+        statusText.className = "text-xs font-bold text-emerald-400 flex items-center gap-1";
+        statusText.innerHTML = '<i class="fa-solid fa-circle-check"></i> 測試 2 成功通過！';
+        
+        cardStatus.className = "text-emerald-400 font-bold";
+        cardStatus.innerText = "驗證成功 (PASSED)";
+
+        exportBtn.disabled = false;
+        showModal('恭喜！', '你的 Python 程式碼完全正確！現在可以點擊下方的「輸出圖檔」按鈕。', 'success');
+      } else {
+        isTest2Passed = false;
+        statusText.className = "text-xs font-bold text-rose-400 flex items-center gap-1";
+        statusText.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> 測試失敗，請修正程式碼';
+
+        cardStatus.className = "text-rose-400 font-bold";
+        cardStatus.innerText = "未通過 (FAILED)";
+
+        exportBtn.disabled = true;
+      }
+    }
+
+    // Step 3: Export HTML Card as PNG Image
+    function exportCardImage() {
+      if (!isTest2Passed) {
+        showModal('無法輸出', '請先成功通過「測試 2」後再匯出圖檔！', 'error');
+        return;
+      }
+
+      const card = document.getElementById('captureCard');
+      const fileName = `${getStudentId()}.png`;
+
+      const exportBtn = document.getElementById('exportBtn');
+      const originalText = exportBtn.innerHTML;
+      exportBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> 圖片產生中...';
+      exportBtn.disabled = true;
+
+      html2canvas(card, {
+        scale: 2,
+        backgroundColor: '#0f172a',
+        useCORS: true
+      }).then(async canvas => {
+        const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+
+        if ('showSaveFilePicker' in window) {
+          try {
+            const handle = await window.showSaveFilePicker({
+              suggestedName: fileName,
+              types: [{
+                description: 'PNG Image',
+                accept: { 'image/png': ['.png'] },
+              }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(imageBlob);
+            await writable.close();
+
+            exportBtn.innerHTML = originalText;
+            exportBtn.disabled = false;
+            showModal('儲存成功', `學習成果圖檔 (${fileName}) 已成功儲存！`, 'success');
+            return;
+          } catch (err) {
+            if (err.name === 'AbortError') {
+              exportBtn.innerHTML = originalText;
+              exportBtn.disabled = false;
+              return;
+            }
+            console.warn("SaveFilePicker 失敗或取消，改用傳統下載方式", err);
+          }
+        }
+
+        const image = canvas.toDataURL("image/png");
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = image;
+        link.click();
+
+        exportBtn.innerHTML = originalText;
+        exportBtn.disabled = false;
+
+        showModal('下載成功', `學習成果圖檔 (${fileName}) 已開始下載！`, 'success');
+      }).catch(err => {
+        console.error(err);
+        exportBtn.innerHTML = originalText;
+        exportBtn.disabled = false;
+        showModal('匯出失敗', '產生圖檔時發生錯誤，請重試。', 'error');
+      });
+    }
+  </script>
+</body>
+</html>
